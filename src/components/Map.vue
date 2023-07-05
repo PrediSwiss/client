@@ -6,6 +6,7 @@
             <p>Chaque cercle bleu correspond à un poste de comptage, vous pouvez zoomer et clicker sur le cercle pour avoir plus d'information sur le compteur</p>
             <p>Il y a actuellement {{ counterSize }} stations de comptages</p>
             <button type="button" class="btn btn-primary" @click="switchControlsVisibity">Test</button>
+            <button type="button" class="btn btn-primary" @click="getPredictionTrip">TestChemin</button>
         </div>
         <div v-else-if="info === 'counter'" class="counter">
             <h3>Id du compteur : {{ actualCounter[0] }}</h3>
@@ -41,10 +42,10 @@
 
 <script>
 import leaflet from 'leaflet'
-import 'leaflet-routing-machine';
+import 'leaflet-routing-machine'
 import 'leaflet-control-geocoder'
-import { onMounted, ref } from 'vue';
-import axios from 'axios';
+import { onMounted, ref } from 'vue'
+import axios from 'axios'
 
 export default {
     data() {
@@ -55,7 +56,8 @@ export default {
             controls: null,
             renderer: null,
             info: 'general',
-            actualCounter: null
+            actualCounter: null,
+            route: null,
         }
     },
     methods: {
@@ -86,6 +88,25 @@ export default {
             this.info = 'counter'
             this.actualCounter = [id, lane, lat, long]
         },
+        getPredictionTrip() {
+            const path = 'http://localhost:5001/trip';
+            axios.post(path, this.route.coordinates)
+            .then((res) =>  {
+                var latitudes = res.data['lat'];
+                var longitudes = res.data['long'];
+
+                for (var key in latitudes) {
+                if (latitudes.hasOwnProperty(key) && longitudes.hasOwnProperty(key)) {
+                    var lat = latitudes[key];
+                    var long = longitudes[key];
+                    leaflet.marker([lat, long]).addTo(this.map);
+                }
+                }
+            })
+            .catch((error) => {
+                console.error(error)
+            })
+        },
         switchControlsVisibity() {
             if (this.controls) {
                 this.map.removeControl(this.controls);
@@ -101,6 +122,7 @@ export default {
     setup() {
         const map = ref(null);
         const controls = ref(null)
+        const route = ref(null)
 
         onMounted(() => {
             map.value = leaflet.map('map', {preferCanvas: true}).setView([46.903990918040584, 8.258780023091239], 8);
@@ -111,14 +133,19 @@ export default {
             }).addTo(map.value);
 
             controls.value = leaflet.Routing.control({
-                show: true,
+                keepInView: true,
+                createMarker: function() {return null; },
                 geocoder: leaflet.Control.Geocoder.nominatim()
+            }).on('routesfound', (e) => {
+                route.value = e.routes[0]
+                console.log(e.routes)
             }).addTo(map.value);
         })
 
         return {
             map,
             controls,
+            route,
         }
     },
     created() {
