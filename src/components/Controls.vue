@@ -31,7 +31,6 @@
 </style>
 
 <script>
-
 export default {
   methods: {
     getActualData() {

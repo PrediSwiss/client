@@ -24,8 +24,7 @@
 
 .info {
     display: flex;
-    
-    justify-content: space-between;
+    flex-direction: row;
 }
 
 .general {
@@ -34,12 +33,15 @@
 
 .counter {
     max-width: 30%;
+    text-align: left;
 }
 
 </style>
 
 <script>
 import leaflet from 'leaflet'
+import 'leaflet-routing-machine';
+import 'leaflet-control-geocoder'
 import { onMounted, ref } from 'vue';
 import axios from 'axios';
 
@@ -49,6 +51,7 @@ export default {
             counter: [],
             counterSize: 0,
             map: null,
+            controls: null,
             renderer: null,
             info: 'general',
             actualCounter: null
@@ -85,6 +88,7 @@ export default {
     },
     setup() {
         const map = ref(null);
+        const controls = ref(null)
 
         onMounted(() => {
             map.value = leaflet.map('map', {preferCanvas: true}).setView([46.903990918040584, 8.258780023091239], 8);
@@ -93,10 +97,15 @@ export default {
                 maxZoom: 19,
                 attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             }).addTo(map.value);
+
+            controls.value = leaflet.Routing.control({
+                geocoder: leaflet.Control.Geocoder.nominatim()
+            }).addTo(map.value);
         })
 
         return {
-            map
+            map,
+            controls,
         }
     },
     created() {
