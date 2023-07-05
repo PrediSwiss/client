@@ -5,6 +5,7 @@
             <h3>Informations general</h3>
             <p>Chaque cercle bleu correspond à un poste de comptage, vous pouvez zoomer et clicker sur le cercle pour avoir plus d'information sur le compteur</p>
             <p>Il y a actuellement {{ counterSize }} stations de comptages</p>
+            <button type="button" class="btn btn-primary" @click="switchControlsVisibity">Test</button>
         </div>
         <div v-else-if="info === 'counter'" class="counter">
             <h3>Id du compteur : {{ actualCounter[0] }}</h3>
@@ -84,6 +85,17 @@ export default {
         showCounterDetails(id, lane, lat, long) {
             this.info = 'counter'
             this.actualCounter = [id, lane, lat, long]
+        },
+        switchControlsVisibity() {
+            if (this.controls) {
+                this.map.removeControl(this.controls);
+                this.controls = null;
+            } else {
+                this.controls = leaflet.Routing.control({
+                show: true,
+                geocoder: leaflet.Control.Geocoder.nominatim(),
+                }).addTo(this.map);
+            }
         }
     },
     setup() {
@@ -99,6 +111,7 @@ export default {
             }).addTo(map.value);
 
             controls.value = leaflet.Routing.control({
+                show: true,
                 geocoder: leaflet.Control.Geocoder.nominatim()
             }).addTo(map.value);
         })

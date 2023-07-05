@@ -12,8 +12,6 @@
     </div>
     <div class="trip">
       <form class="d-flex">
-        <input class="form-control me-2" type="start" placeholder="Lieu de départ" aria-label="start">
-        <input class="form-control me-2" type="end" placeholder="Lieu d'arrivé" aria-label="end">
         <input class="form-control me-2" type="search" placeholder="Estimation du trafic dans x secondes" aria-label="Search">
         <button class="btn btn-outline-success" type="submit">Afficher</button>
       </form>
@@ -32,6 +30,8 @@
 
 <script>
 export default {
+  data() {
+  },
   methods: {
     getActualData() {
     }
