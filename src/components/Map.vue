@@ -7,6 +7,7 @@
             <p>Il y a actuellement {{ counterSize }} stations de comptages</p>
             <button type="button" class="btn btn-primary" @click="switchControlsVisibity">Test</button>
             <button type="button" class="btn btn-primary" @click="getPredictionTrip">TestChemin</button>
+            <button type="button" class="btn btn-primary" @click="getTest">TestOneCounter</button>
         </div>
         <div v-else-if="info === 'counter'" class="counter">
             <h3>Id du compteur : {{ actualCounter[0] }}</h3>
@@ -107,6 +108,16 @@ export default {
                 console.error(error)
             })
         },
+        getTest() {
+            const path = 'http://localhost:5001/test';
+            axios.get(path)
+            .then((res) =>  {
+                console.log(res.data)
+            })
+            .catch((error) => {
+                console.error(error)
+            })
+        },
         switchControlsVisibity() {
             if (this.controls) {
                 this.map.removeControl(this.controls);
@@ -134,6 +145,8 @@ export default {
 
             controls.value = leaflet.Routing.control({
                 keepInView: true,
+                autoRoute: true,
+                routeWhileDragging: false,
                 createMarker: function() {return null; },
                 geocoder: leaflet.Control.Geocoder.nominatim()
             }).on('routesfound', (e) => {
