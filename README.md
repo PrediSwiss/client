@@ -65,10 +65,12 @@ docker run -t -v "${PWD}:/data" ghcr.io/project-osrm/osrm-backend osrm-extract -
 #### nop  
 docker pull osrm/osrm-backend:latest
 
-docker run -t -v E:/TB/osrm-data:/data osrm/osrm-backend osrm-extract -p /opt/car.lua /data/switzerland-latest.osm.pbf
+docker run -t -v e:/TB/data:/data osrm/osrm-backend osrm-extract -p /opt/car.lua /data/switzerland-latest.osm.pbf
 
-docker run -t -v e:/TB/osrm-data:/data osrm/osrm-backend osrm-partition /data/switzerland-latest.osm.pbf
+docker run -t -v e:/TB/data:/data osrm/osrm-backend osrm-partition /data/switzerland-latest.osrm
 
-docker run -t -v e:/TB/osrm-data:/data osrm/osrm-backend osrm-customize /data/switzerland-latest.osm.pbf
+docker run -t -v e:/TB/data:/data osrm/osrm-backend osrm-customize /data/switzerland-latest.osrm
 
-docker run --name osrm -t -i -p 5000:5000 -v e:/TB/osrm-data:/data osrm/osrm-backend osrm-routed --algorithm mld /data/switzerland-latest.osrm
+docker run --name osrm -t -i -p 5000:5000 -v e:/TB/data:/data osrm/osrm-backend osrm-routed --algorithm mld /data/switzerland-latest.osrm
+
+après juste start après 1 ère fois : docker start osrm

@@ -1,28 +1,48 @@
 <template>
     <div class="info">
         <div id="map"></div>
-        <div v-if="info === 'general'" class="general">
-            <h3>Informations general</h3>
-            <p>Chaque cercle bleu correspond à un poste de comptage, vous pouvez zoomer et clicker sur le cercle pour avoir plus d'information sur le compteur</p>
-            <p>Il y a actuellement {{ counterSize }} stations de comptages</p>
-            <button type="button" class="btn btn-primary" @click="switchControlsVisibity">Test</button>
-            <button type="button" class="btn btn-primary" @click="getPredictionTrip">TestChemin</button>
-            <button type="button" class="btn btn-primary" @click="getTest">TestOneCounter</button>
+        <div class="lateral">
+            <div class="control">
+                <div class="trip">
+                    <button type="button" class="btn btn-primary" @click="switchControlsVisibity">Toggle trip planner</button>
+                    <input type="number" class="form-control" placeholder="Time in minutes" aria-label="Time" id="tripTime" min="1" step="1">
+                    <button type="button" class="btn btn-primary" @click="getPredictionTrip">Predict trip</button>
+                </div>
+                <button type="button" class="btn btn-primary" @click="toggleCounter">Toggle counter display</button>
+            </div>
+            <div v-if="info === 'general'" class="general">
+                <h3>General information</h3>
+                <p>Each blue circle corresponds to a counting station, you can zoom in and click on the circle to get more information about the counter.</p>
+                <p>There are currently {{ counterSize }} counting stations.</p>
+            </div>
+            <div v-else-if="info === 'counter'" class="counter">
+                <h3>Id of the counter : {{ actualCounter[0] }}</h3>
+                <p>Line : {{ actualCounter[1] }}</p>
+                <p>Latitude :  {{ actualCounter[2] }}</p>
+                <p>Longitude : {{ actualCounter[3] }}</p>
+            </div>
         </div>
-        <div v-else-if="info === 'counter'" class="counter">
-            <h3>Id du compteur : {{ actualCounter[0] }}</h3>
-            <p>Ligne : {{ actualCounter[1] }}</p>
-            <p>Latitude :  {{ actualCounter[2] }}</p>
-            <p>Longitude : {{ actualCounter[3] }}</p>
-        </div>
+    </div>
+    <div class="alert alert-warning" role="alert" id="timeNotValid" v-if="showAlert">
+        The time must be greater then 1
     </div>
 </template>
 
 <style scoped>
 
 #map {
-    height: 700px;
-    width: 70%;
+    flex: 1;
+    width: 100vh;
+    height: 100vh;
+}
+
+#timeNotValid {
+    position:fixed; 
+    bottom: 0px; 
+    left: 0px; 
+    width: 100%;
+    z-index:9999; 
+    border-radius:0px
 }
 
 .info {
@@ -30,13 +50,12 @@
     flex-direction: row;
 }
 
-.general {
-    max-width: 30%;
+.control {
+    height: 25vh;
 }
 
-.counter {
-    max-width: 30%;
-    text-align: left;
+.lateral {
+    width: 50vh;
 }
 
 </style>
@@ -52,16 +71,30 @@ export default {
     data() {
         return {
             counter: [],
+            countersMarker: [],
             counterSize: 0,
+            isCounterDisplay: true,
             map: null,
             controls: null,
+            isControlsDisplay: false,
             renderer: null,
             info: 'general',
             actualCounter: null,
             route: null,
+            tripPredict: [],
+            showAlert: false,
         }
     },
     methods: {
+        toggleCounter() {
+            for (var i in this.countersMarker)
+                if (this.isCounterDisplay == true) {
+                    this.countersMarker[i].remove()
+                } else {
+                    this.countersMarker[i].addTo(this.map)
+                }
+            this.isCounterDisplay = !this.isCounterDisplay
+        },
         getCounter() {
             const path = 'http://localhost:5001/counter';
             axios.get(path)
@@ -72,7 +105,7 @@ export default {
                 this.counterSize = Object.keys(this.counter[0]).length
 
                 for (var i in this.counter[0])
-                    this.addMarker(this.counter[0][i], this.counter[1][i], this.counter[2][i], this.counter[3][i])
+                    this.countersMarker.push(this.addMarker(this.counter[0][i], this.counter[1][i], this.counter[2][i], this.counter[3][i]))
             })
             .catch((error) => {
                 console.error(error)
@@ -84,6 +117,8 @@ export default {
             marker.on('click', () => {
                 this.showCounterDetails(id, lane, lat, long);
             });
+
+            return marker
         },
         showCounterDetails(id, lane, lat, long) {
             this.info = 'counter'
@@ -91,43 +126,44 @@ export default {
         },
         getPredictionTrip() {
             const path = 'http://localhost:5001/trip';
-            axios.post(path, this.route.coordinates)
-            .then((res) =>  {
-                var latitudes = res.data['lat'];
-                var longitudes = res.data['long'];
 
-                for (var key in latitudes) {
-                if (latitudes.hasOwnProperty(key) && longitudes.hasOwnProperty(key)) {
-                    var lat = latitudes[key];
-                    var long = longitudes[key];
-                    leaflet.marker([lat, long]).addTo(this.map);
-                }
-                }
-            })
-            .catch((error) => {
-                console.error(error)
-            })
-        },
-        getTest() {
-            const path = 'http://localhost:5001/test';
-            axios.get(path)
-            .then((res) =>  {
-                console.log(res.data)
-            })
-            .catch((error) => {
-                console.error(error)
-            })
+            const time = document.getElementById('tripTime').value
+
+            if (time < 1) {
+                this.showAlert = true;
+                setTimeout(() => {
+                    this.showAlert = false;
+                }, 5000);
+            } else {
+                axios.post(path, [this.route.coordinates, time])
+                .then((res) =>  {
+                    var latitudes = res.data['lat'];
+                    var longitudes = res.data['long'];
+
+                    for (var key in latitudes) {
+                        if (latitudes.hasOwnProperty(key) && longitudes.hasOwnProperty(key)) {
+                            var lat = latitudes[key];
+                            var long = longitudes[key];
+                            leaflet.marker([lat, long]).addTo(this.map);
+                        }
+                    }
+
+                    for (var i in res.data[0]) {
+                        this.tripPredict.push(res.data[0][i])
+                    }
+                })
+                .catch((error) => {
+                    console.error(error)
+                })
+            }
         },
         switchControlsVisibity() {
-            if (this.controls) {
-                this.map.removeControl(this.controls);
-                this.controls = null;
+            if (this.isControlsDisplay == true) {
+                this.map.removeControl(this.controls)
             } else {
-                this.controls = leaflet.Routing.control({
-                show: true,
-                geocoder: leaflet.Control.Geocoder.nominatim(),
-                }).addTo(this.map);
+                this.map.addControl(this.controls)
             }
+            this.isControlsDisplay = !this.isControlsDisplay
         }
     },
     setup() {
@@ -147,12 +183,12 @@ export default {
                 keepInView: true,
                 autoRoute: true,
                 routeWhileDragging: false,
+                serviceUrl: 'http://127.0.0.1:5000/route/v1',
                 createMarker: function() {return null; },
                 geocoder: leaflet.Control.Geocoder.nominatim()
             }).on('routesfound', (e) => {
                 route.value = e.routes[0]
-                console.log(e.routes)
-            }).addTo(map.value);
+            });
         })
 
         return {
