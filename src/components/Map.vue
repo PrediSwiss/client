@@ -9,6 +9,10 @@
                     <button type="button" class="btn btn-primary" @click="getPredictionTrip">Predict trip</button>
                 </div>
                 <button type="button" class="btn btn-primary" @click="toggleCounter">Toggle counter display</button>
+                <div class="currentControl">
+                    <button type="button" class="btn btn-primary" @click="displayCurrent">Display current trafic</button>
+                    <button type="button" class="btn btn-primary" @click="removeCurrent">Remove current trafic</button>
+                </div>
             </div>
             <div v-if="info === 'general'" class="general">
                 <h3>General information</h3>
@@ -20,6 +24,17 @@
                 <p>Line : {{ actualCounter[1] }}</p>
                 <p>Latitude :  {{ actualCounter[2] }}</p>
                 <p>Longitude : {{ actualCounter[3] }}</p>
+            </div>
+            <div v-else-if="info === 'predict'" class="predict">
+                <h3>Prediction of trafic</h3>
+                <p>Speed predicted at time {{ actualTime }} : {{ actualPredict }} km/h</p>
+            </div>
+            <div v-else-if="info === 'current'" class="current">
+                <h3>Actual traffic</h3>
+                <p>Counter id : {{ currentDetails[0] }} </p>
+                <p>Date of data : {{ currentDetails[1] }} UTC</p>
+                <p>Speed : {{ currentDetails[2] }}</p>
+                <p>Flow : {{ currentDetails[3] }}</p>
             </div>
         </div>
     </div>
@@ -82,10 +97,67 @@ export default {
             actualCounter: null,
             route: null,
             tripPredict: [],
+            tripCounter: [],
+            actualPredict: null,
+            actualTime: null,
+            predictMarker: [],
             showAlert: false,
+            currentMarker: [],
+            currentDetails: [],
         }
     },
     methods: {
+        getIdFromCounter(id) {
+            for (const key in this.counter[3]) {
+                if (this.counter[3].hasOwnProperty(key) && this.counter[3][key] === id) {
+                    return key;
+                }
+            }
+            return null;
+        },
+        removeCurrent() {
+            if (this.currentMarker.length != 0) {
+                for (var i in this.currentMarker) {
+                    this.currentMarker[i].remove()
+                }
+
+                this.currentMarker = []
+            }
+        },
+        displayCurrent() {
+            const path = 'http://localhost:5001/current';
+
+            this.removeCurrent()
+
+            axios.get(path)
+            .then((res) => {
+                for (var id in res.data['id']) {
+                    var counterId = this.getIdFromCounter(res.data['id'][id])
+                    if (counterId != null) {
+                        const marker = leaflet.circleMarker([this.counter[0][counterId], this.counter[1][counterId]]).addTo(this.map)
+
+                        marker.on('click', () => {
+                            this.showCurrentDetails(res.data['id'][id], res.data['publication_date'][id], res.data['speed_12'][id], res.data['flow_11'][id]);
+                        });
+
+                        if (res.data['speed_12'][id] < 60) {
+                            marker.setStyle({color: 'orange'})
+                        } else {
+                            marker.setStyle({color: 'green'})
+                        }
+
+                        this.currentMarker.push(marker)
+                    }
+                }
+            })
+            .catch((error) => {
+                console.error(error)
+            })
+        },
+        showCurrentDetails(id, date, speed, flow) {
+            this.info = 'current'
+            this.currentDetails = [id, date, speed, flow]
+        },
         toggleCounter() {
             for (var i in this.countersMarker)
                 if (this.isCounterDisplay == true) {
@@ -125,37 +197,67 @@ export default {
             this.actualCounter = [id, lane, lat, long]
         },
         getPredictionTrip() {
-            const path = 'http://localhost:5001/trip';
+            const path = 'http://localhost:5001/tripPredict';
+            const pathCounter = 'http://localhost:5001/trip'
 
             const time = document.getElementById('tripTime').value
 
-            if (time < 1) {
-                this.showAlert = true;
-                setTimeout(() => {
-                    this.showAlert = false;
-                }, 5000);
-            } else {
-                axios.post(path, [this.route.coordinates, time])
-                .then((res) =>  {
-                    var latitudes = res.data['lat'];
-                    var longitudes = res.data['long'];
+            axios.post(pathCounter, [this.route.coordinates])
+            .then((res) => {
+                this.tripCounter = res.data
 
-                    for (var key in latitudes) {
-                        if (latitudes.hasOwnProperty(key) && longitudes.hasOwnProperty(key)) {
-                            var lat = latitudes[key];
-                            var long = longitudes[key];
-                            leaflet.marker([lat, long]).addTo(this.map);
+                if (time < 1) {
+                    this.showAlert = true;
+                    setTimeout(() => {
+                        this.showAlert = false;
+                    }, 5000);
+                } else {
+                    axios.post(path, [this.tripCounter['id'], time])
+                    .then((res) =>  {
+                        for (let i = 0; i < res.data.length; i++) {
+                            this.tripPredict.push(res.data[i])
                         }
-                    }
 
-                    for (var i in res.data[0]) {
-                        this.tripPredict.push(res.data[0][i])
-                    }
-                })
-                .catch((error) => {
-                    console.error(error)
-                })
-            }
+                        var latitudes = this.tripCounter['lat'];
+                        var longitudes = this.tripCounter['long'];
+                        const maxSpeed = Math.max(...this.tripPredict)
+                        const minSpeed = Math.min(...this.tripPredict)
+                        const rangeSpeed = maxSpeed - minSpeed
+
+                        var counter = 0
+                        for (var key in latitudes) {
+                            if (latitudes.hasOwnProperty(key) && longitudes.hasOwnProperty(key)) {
+                                var lat = latitudes[key];
+                                var long = longitudes[key];
+                                const marker = leaflet.circleMarker([lat, long]).addTo(this.map)
+
+                                marker.on('click', () => {
+                                    this.showPredictDetails(counter);
+                                });
+                                
+                                if (rangeSpeed > 30 && this.tripPredict[counter] < maxSpeed - (rangeSpeed / 3)) {
+                                    marker.setStyle({color: 'orange'})
+                                } else {
+                                    marker.setStyle({color: 'green'})
+                                }
+
+                                this.predictMarker.push(marker)
+                            }
+                            counter += 1
+                        }
+                    })
+                    .catch((error) => {
+                        console.error(error)
+                    })
+                }
+            })
+            .catch((error) => {
+                console.error(error)
+            })
+        },
+        showPredictDetails(id) {
+            this.info = 'predict'
+            this.actualPredict = this.tripPredict[id]
         },
         switchControlsVisibity() {
             if (this.isControlsDisplay == true) {
