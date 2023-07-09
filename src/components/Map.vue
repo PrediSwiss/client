@@ -33,8 +33,8 @@
                 <h3>Actual traffic</h3>
                 <p>Counter id : {{ currentDetails[0] }} </p>
                 <p>Date of data : {{ currentDetails[1] }} UTC</p>
-                <p>Speed : {{ currentDetails[2] }}</p>
-                <p>Flow : {{ currentDetails[3] }}</p>
+                <p>Speed: <span v-if="currentDetails[2] == 0 || currentDetails[2] === null">No data</span><span v-else>{{ currentDetails[2] }}</span></p>
+                <p>Flow : <span v-if="currentDetails[3] == 0 || currentDetails[3] === null">No data</span><span v-else>{{ currentDetails[3] }}</span></p>
             </div>
         </div>
     </div>
@@ -103,7 +103,8 @@ export default {
             predictMarker: [],
             showAlert: false,
             currentMarker: [],
-            currentDetails: [],
+            currentDetails: null,
+            currentData: [],
         }
     },
     methods: {
@@ -134,25 +135,32 @@ export default {
                 for (var id in res.data['id']) {
                     var counterId = this.getIdFromCounter(res.data['id'][id])
                     if (counterId != null) {
-                        const marker = leaflet.circleMarker([this.counter[0][counterId], this.counter[1][counterId]]).addTo(this.map)
-
-                        marker.on('click', () => {
-                            this.showCurrentDetails(res.data['id'][id], res.data['publication_date'][id], res.data['speed_12'][id], res.data['flow_11'][id]);
-                        });
-
-                        if (res.data['speed_12'][id] < 60) {
-                            marker.setStyle({color: 'orange'})
-                        } else {
-                            marker.setStyle({color: 'green'})
-                        }
-
-                        this.currentMarker.push(marker)
+                        this.currentData.push([res.data['id'][id], res.data['publication_date'][id], res.data['speed_12'][id], res.data['flow_11'][id], this.counter[0][counterId], this.counter[1][counterId]])
                     }
+                }
+
+                for (var i in this.currentData) {
+                    this.currentMarker.push(this.addMarkerFlow(this.currentData[i][4], this.currentData[i][5], this.currentData[i][0], this.currentData[i][1], this.currentData[i][2], this.currentData[i][3]))
                 }
             })
             .catch((error) => {
                 console.error(error)
             })
+        },
+        addMarkerFlow(lat, long, id, date, speed, flow) {
+            const marker = leaflet.circleMarker([lat, long]).addTo(this.map)
+
+            marker.on('click', () => {
+                this.showCurrentDetails(id, date, speed, flow);
+            });
+
+            if (speed < 60) {
+                marker.setStyle({color: 'orange'})
+            } else {
+                marker.setStyle({color: 'green'})
+            }
+
+            return marker
         },
         showCurrentDetails(id, date, speed, flow) {
             this.info = 'current'
