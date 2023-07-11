@@ -1,45 +1,54 @@
 <template>
     <div class="info">
-        <div id="map"></div>
+        <div id="map">
+            <div class="mapControl">
+                <button type="button" class="btn btn-light" @click="switchControlsVisibity">Toggle trip planner</button>
+                <button type="button" class="btn btn-light" @click="toggleCounter">Toggle counting station</button>
+                <button type="button" class="btn btn-light" @click="toggleCurrent">Toggle current trafic</button>
+                <button type="button" class="btn btn-light" @click="togglePredict" :hidden="isTripPredict">Toggle predict</button>
+            </div>          
+        </div>
         <div class="lateral">
-            <div class="control">
-                <div class="trip">
-                    <button type="button" class="btn btn-primary" @click="switchControlsVisibity">Toggle trip planner</button>
-                    <input type="number" class="form-control" placeholder="Time in minutes" aria-label="Time" id="tripTime" min="1" step="1">
-                    <button type="button" class="btn btn-primary" @click="getPredictionTrip">Predict trip</button>
-                </div>
-                <button type="button" class="btn btn-primary" @click="toggleCounter">Toggle counter display</button>
-                <div class="currentControl">
-                    <button type="button" class="btn btn-primary" @click="displayCurrent">Display current trafic</button>
-                    <button type="button" class="btn btn-primary" @click="removeCurrent">Remove current trafic</button>
-                </div>
-            </div>
-            <div v-if="info === 'general'" class="general">
+            <div class="general">
                 <h3>General information</h3>
-                <p>Each blue circle corresponds to a counting station, you can zoom in and click on the circle to get more information about the counter.</p>
+                <p>Each blue circle correspond to a counting station, you can zoom in and click on the circle to get more information about the counting station.</p>
                 <p>There are currently {{ counterSize }} counting stations.</p>
             </div>
-            <div v-else-if="info === 'counter'" class="counter">
-                <h3>Id of the counter : {{ actualCounter[0] }}</h3>
-                <p>Line : {{ actualCounter[1] }}</p>
-                <p>Latitude :  {{ actualCounter[2] }}</p>
-                <p>Longitude : {{ actualCounter[3] }}</p>
+            <div class="control">
+                <div class="trip">
+                    <h3>Predict a trip</h3>
+                    <p>You first need to select a route and select a date for the prediction, the operation will take some minutes. The format used for the date is UTC. </p>                    
+                    <div>
+                        <label>Date :</label>
+                        <input type="date" v-model="tripSelectedDate">
+                        <label>Time :</label>
+                        <input type="time" v-model="tripSelectedTime">
+                    </div>
+                    <button type="button" class="btn btn-success" @click="getPredictionTrip" :disabled="!isInputDataComplete">Predict trip</button>
+                    <div class="spinner-border" role="status" v-if="isLoading">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+            <div v-if="info === 'counter'" class="counter">
+                <h3>Id of the counting station : {{ actualCounter[0] }}</h3>
+                <p>Line observed : {{ actualCounter[1] }}</p>
+                <p>Latitude of the station : {{ actualCounter[2] }}</p>
+                <p>Longitude of the station : {{ actualCounter[3] }}</p>
             </div>
             <div v-else-if="info === 'predict'" class="predict">
                 <h3>Prediction of trafic</h3>
-                <p>Speed predicted at time {{ actualTime }} : {{ actualPredict }} km/h</p>
+                <p>Id : {{ tripPredictDetails[0] }}</p>
+                <p>Time of the prediction :  {{ timeTripRequest }} </p>
+                <p>Speed predicted : <span v-if="!tripPredictDetails[2] ">No data</span><span v-else>{{ tripPredictDetails[2] }} km/h</span></p>
             </div>
             <div v-else-if="info === 'current'" class="current">
                 <h3>Actual traffic</h3>
                 <p>Counter id : {{ currentDetails[0] }} </p>
                 <p>Date of data : {{ currentDetails[1] }} UTC</p>
                 <p>Speed: <span v-if="currentDetails[2] == 0 || currentDetails[2] === null">No data</span><span v-else>{{ currentDetails[2] }}</span></p>
-                <p>Flow : <span v-if="currentDetails[3] == 0 || currentDetails[3] === null">No data</span><span v-else>{{ currentDetails[3] }}</span></p>
             </div>
         </div>
-    </div>
-    <div class="alert alert-warning" role="alert" id="timeNotValid" v-if="showAlert">
-        The time must be greater then 1
     </div>
 </template>
 
@@ -49,15 +58,7 @@
     flex: 1;
     width: 100vh;
     height: 100vh;
-}
-
-#timeNotValid {
-    position:fixed; 
-    bottom: 0px; 
-    left: 0px; 
-    width: 100%;
-    z-index:9999; 
-    border-radius:0px
+    border-right: 5px solid #000000;
 }
 
 .info {
@@ -66,13 +67,51 @@
 }
 
 .control {
-    height: 25vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.control > * {
+    margin-bottom: 10px;
+}
+
+.control input {
+    margin-right: 15px;
+}
+
+#map > * {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    z-index: 999;
+}
+
+.mapControl > * {
+    margin-left: 10px;
+}
+
+.trip > * {
+    display: flex;
+    margin-bottom: 15px;
+}
+
+label {
+    margin-right: 10px;
 }
 
 .lateral {
     width: 50vh;
+    margin-right: 10px;
 }
 
+.general,
+.counter,
+.predict,
+.current,
+.control {
+    margin-left: 20px;
+}
 </style>
 
 <script>
@@ -93,10 +132,10 @@ export default {
             controls: null,
             isControlsDisplay: false,
             renderer: null,
-            info: 'general',
+            info: '',
             actualCounter: null,
             route: null,
-            tripPredict: [],
+            tripPredict: null,
             tripCounter: [],
             actualPredict: null,
             actualTime: null,
@@ -105,6 +144,21 @@ export default {
             currentMarker: [],
             currentDetails: null,
             currentData: [],
+            tripSelectedDate: '',
+            tripSelectedTime: '',
+            tripPredictDetails: null,
+            predictDetails: [],
+            isPredictDisplay: true,
+            timeTripRequest: '',
+            isLoading: false,
+        }
+    },
+    computed: {
+        isInputDataComplete() {
+            return this.tripSelectedDate && this.tripSelectedTime && this.route != null && this.isLoading == false
+        },
+        isTripPredict() {
+            return this.predictDetails.length == 0
         }
     },
     methods: {
@@ -116,55 +170,54 @@ export default {
             }
             return null;
         },
-        removeCurrent() {
+        toggleCurrent() {
+            const path = 'http://localhost:5001/current';
+
             if (this.currentMarker.length != 0) {
                 for (var i in this.currentMarker) {
                     this.currentMarker[i].remove()
                 }
-
                 this.currentMarker = []
+                this.currentData = []
+            } else {
+                axios.get(path)
+                .then((res) => {
+                    for (var id in res.data['id']) {
+                        var counterId = this.getIdFromCounter(res.data['id'][id])
+                        if (counterId != null) {
+                            this.currentData.push([res.data['id'][id], res.data['publication_date'][id], res.data['speed_12'][id], res.data['flow_11'][id], this.counter[0][counterId], this.counter[1][counterId]])
+                        }
+                    }
+
+                    for (var i in this.currentData) {
+                        this.currentMarker.push(this.addMarkerSpeed(this.currentData[i][4], this.currentData[i][5], this.currentData[i][0], this.currentData[i][1], this.currentData[i][2], this.showCurrentDetails))
+                    }
+                })
+                .catch((error) => {
+                    console.error(error)
+                })
             }
         },
-        displayCurrent() {
-            const path = 'http://localhost:5001/current';
-
-            this.removeCurrent()
-
-            axios.get(path)
-            .then((res) => {
-                for (var id in res.data['id']) {
-                    var counterId = this.getIdFromCounter(res.data['id'][id])
-                    if (counterId != null) {
-                        this.currentData.push([res.data['id'][id], res.data['publication_date'][id], res.data['speed_12'][id], res.data['flow_11'][id], this.counter[0][counterId], this.counter[1][counterId]])
-                    }
-                }
-
-                for (var i in this.currentData) {
-                    this.currentMarker.push(this.addMarkerFlow(this.currentData[i][4], this.currentData[i][5], this.currentData[i][0], this.currentData[i][1], this.currentData[i][2], this.currentData[i][3]))
-                }
-            })
-            .catch((error) => {
-                console.error(error)
-            })
-        },
-        addMarkerFlow(lat, long, id, date, speed, flow) {
+        addMarkerSpeed(lat, long, id, date, speed, showFn) {
             const marker = leaflet.circleMarker([lat, long]).addTo(this.map)
 
             marker.on('click', () => {
-                this.showCurrentDetails(id, date, speed, flow);
+                showFn(id, date, speed);
             });
 
             if (speed < 60) {
                 marker.setStyle({color: 'orange'})
+            } else if (!speed) {
+                marker.setStyle({color: 'black'})
             } else {
                 marker.setStyle({color: 'green'})
             }
 
             return marker
         },
-        showCurrentDetails(id, date, speed, flow) {
+        showCurrentDetails(id, date, speed) {
             this.info = 'current'
-            this.currentDetails = [id, date, speed, flow]
+            this.currentDetails = [id, date, speed]
         },
         toggleCounter() {
             for (var i in this.countersMarker)
@@ -204,68 +257,64 @@ export default {
             this.info = 'counter'
             this.actualCounter = [id, lane, lat, long]
         },
+        togglePredict() {
+            for (var i in this.predictMarker)
+                if (this.isPredictDisplay == true) {
+                    this.predictMarker[i].remove()
+                } else {
+                    this.predictMarker[i].addTo(this.map)
+                }
+            this.isPredictDisplay = !this.isPredictDisplay
+        },
         getPredictionTrip() {
+            this.isLoading = true;
             const path = 'http://localhost:5001/tripPredict';
             const pathCounter = 'http://localhost:5001/trip'
+            this.timeTripRequest = this.tripSelectedDate + " : " + this.tripSelectedTime
 
-            const time = document.getElementById('tripTime').value
+            this.predictDetails = []
+            for (var i in this.predictMarker) {
+                this.predictMarker[i].remove()
+            }
+            this.predictMarker = []
 
             axios.post(pathCounter, [this.route.coordinates])
             .then((res) => {
                 this.tripCounter = res.data
+                axios.post(path, [this.tripCounter['id'], this.tripSelectedDate, this.tripSelectedTime])
+                .then((res) =>  {
+                    this.tripPredict = res.data
+                    var latitudes = this.tripCounter['lat'];
+                    var longitudes = this.tripCounter['long'];
 
-                if (time < 1) {
-                    this.showAlert = true;
-                    setTimeout(() => {
-                        this.showAlert = false;
-                    }, 5000);
-                } else {
-                    axios.post(path, [this.tripCounter['id'], time])
-                    .then((res) =>  {
-                        for (let i = 0; i < res.data.length; i++) {
-                            this.tripPredict.push(res.data[i])
+                    var counter = 0
+                    for (var key in latitudes) {
+                        if (latitudes.hasOwnProperty(key) && longitudes.hasOwnProperty(key)) {
+                            var lat = latitudes[key];
+                            var long = longitudes[key];
+
+                            this.predictDetails.push([lat, long, this.tripCounter['id'][key], new Date(this.tripPredict.time).toISOString(), this.tripPredict.predict[counter]])
                         }
+                        counter += 1
+                    }
 
-                        var latitudes = this.tripCounter['lat'];
-                        var longitudes = this.tripCounter['long'];
-                        const maxSpeed = Math.max(...this.tripPredict)
-                        const minSpeed = Math.min(...this.tripPredict)
-                        const rangeSpeed = maxSpeed - minSpeed
+                    for (var i in this.predictDetails) {
+                        this.predictMarker.push(this.addMarkerSpeed(this.predictDetails[i][0], this.predictDetails[i][1], this.predictDetails[i][2], this.predictDetails[i][3], this.predictDetails[i][4], this.showPredictDetails))
+                    }
 
-                        var counter = 0
-                        for (var key in latitudes) {
-                            if (latitudes.hasOwnProperty(key) && longitudes.hasOwnProperty(key)) {
-                                var lat = latitudes[key];
-                                var long = longitudes[key];
-                                const marker = leaflet.circleMarker([lat, long]).addTo(this.map)
-
-                                marker.on('click', () => {
-                                    this.showPredictDetails(counter);
-                                });
-                                
-                                if (rangeSpeed > 30 && this.tripPredict[counter] < maxSpeed - (rangeSpeed / 3)) {
-                                    marker.setStyle({color: 'orange'})
-                                } else {
-                                    marker.setStyle({color: 'green'})
-                                }
-
-                                this.predictMarker.push(marker)
-                            }
-                            counter += 1
-                        }
-                    })
-                    .catch((error) => {
-                        console.error(error)
-                    })
-                }
+                    this.isLoading = false;
+                })
+                .catch((error) => {
+                    console.error(error)
+                })
             })
             .catch((error) => {
                 console.error(error)
             })
         },
-        showPredictDetails(id) {
+        showPredictDetails(id, date, speed) {
             this.info = 'predict'
-            this.actualPredict = this.tripPredict[id]
+            this.tripPredictDetails = [id, date, speed]
         },
         switchControlsVisibity() {
             if (this.isControlsDisplay == true) {
