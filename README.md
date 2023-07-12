@@ -1,6 +1,6 @@
 # client
 
-This template should help get you started developing with Vue 3 in Vite.
+THis is the front-end of the project you can follow the infromation from vite for a smooth coding experience.
 
 ## Recommended IDE Setup
 
@@ -58,14 +58,6 @@ npm run lint
 
 ### OSRM
 
-docker pull osrm/osrm-backend:latest
+If you want to use this repo you need to setup a OSRM local server :
 
-docker run -t -v e:/TB/data:/data osrm/osrm-backend osrm-extract -p /opt/car.lua /data/switzerland-latest.osm.pbf
-
-docker run -t -v e:/TB/data:/data osrm/osrm-backend osrm-partition /data/switzerland-latest.osrm
-
-docker run -t -v e:/TB/data:/data osrm/osrm-backend osrm-customize /data/switzerland-latest.osrm
-
-docker run --name osrm -t -i -p 5000:5000 -v e:/TB/data:/data osrm/osrm-backend osrm-routed --algorithm mld /data/switzerland-latest.osrm
-
-après juste start après 1 ère fois : docker start osrm
+you can follow this [tutorial](https://gist.github.com/AlexandraKapp/e0eee2beacc93e765113aff43ec77789) if you are on windows
