@@ -57,12 +57,7 @@ npm run lint
 ```
 
 ### OSRM
-docker run -t -v "${PWD}:/data" ghcr.io/project-osrm/osrm-backend osrm-extract -p /opt/car.lua /data/switzerland-latest.osm.pbf || echo "osrm-extract failed"
 
-
-
-
-#### nop  
 docker pull osrm/osrm-backend:latest
 
 docker run -t -v e:/TB/data:/data osrm/osrm-backend osrm-extract -p /opt/car.lua /data/switzerland-latest.osm.pbf

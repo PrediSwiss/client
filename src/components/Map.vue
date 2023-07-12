@@ -2,10 +2,10 @@
     <div class="info">
         <div id="map">
             <div class="mapControl">
-                <button type="button" class="btn btn-light" @click="switchControlsVisibity">Toggle trip planner</button>
-                <button type="button" class="btn btn-light" @click="toggleCounter">Toggle counting station</button>
-                <button type="button" class="btn btn-light" @click="toggleCurrent">Toggle current trafic</button>
-                <button type="button" class="btn btn-light" @click="togglePredict" :hidden="isTripPredict">Toggle predict</button>
+                <button type="button" class="btn" :class="{ 'btn-secondary': !isTripPlannerPressed, 'btn-primary': isTripPlannerPressed }" @click="switchControlsVisibity">Toggle trip planner</button>
+                <button type="button" class="btn" :class="{ 'btn-secondary': !isCounterPressed, 'btn-primary': isCounterPressed }" @click="toggleCounter">Toggle counting station</button>
+                <button type="button" class="btn" :class="{ 'btn-secondary': !isCurrentTrafficPressed, 'btn-primary': isCurrentTrafficPressed }" @click="toggleCurrent">Toggle current trafic</button>
+                <button type="button" class="btn" :class="{ 'btn-secondary': !isPredictPressed, 'btn-primary': isPredictPressed }" @click="togglePredict" :hidden="isTripPredict">Toggle predict</button>
             </div>          
         </div>
         <div class="lateral">
@@ -46,7 +46,7 @@
                 <h3>Actual traffic</h3>
                 <p>Counter id : {{ currentDetails[0] }} </p>
                 <p>Date of data : {{ currentDetails[1] }} UTC</p>
-                <p>Speed: <span v-if="currentDetails[2] == 0 || currentDetails[2] === null">No data</span><span v-else>{{ currentDetails[2] }}</span></p>
+                <p>Speed: <span v-if="currentDetails[2] === null">No data</span><span v-else>{{ currentDetails[2] }}</span></p>
             </div>
         </div>
     </div>
@@ -89,6 +89,7 @@
 
 .mapControl > * {
     margin-left: 10px;
+    margin-bottom: 10px;
 }
 
 .trip > * {
@@ -103,14 +104,12 @@ label {
 .lateral {
     width: 50vh;
     margin-right: 10px;
+    margin-left: 10px;
 }
 
 .general,
-.counter,
-.predict,
-.current,
 .control {
-    margin-left: 20px;
+    border-bottom: 2px solid #706969;
 }
 </style>
 
@@ -151,11 +150,27 @@ export default {
             isPredictDisplay: true,
             timeTripRequest: '',
             isLoading: false,
+            isTripPlannerPressed: false,
+            isCounterPressed: true,
+            isCurrentTrafficPressed: false,
+            isPredictPressed: false
         }
     },
     computed: {
         isInputDataComplete() {
-            return this.tripSelectedDate && this.tripSelectedTime && this.route != null && this.isLoading == false
+            // Check if the required trip input data is complete
+            const currentDateUTC = new Date().toISOString().split('T')[0];
+            const currentTimeUTC = new Date().toISOString().split('T')[1].slice(0, 5);
+
+            const selectedDateTimeUTC = `${this.tripSelectedDate}T${this.tripSelectedTime}`;
+
+            return (
+                this.tripSelectedDate &&
+                this.tripSelectedTime &&
+                this.route !== null &&
+                this.isLoading === false &&
+                selectedDateTimeUTC >= `${currentDateUTC}T${currentTimeUTC}`
+            );
         },
         isTripPredict() {
             return this.predictDetails.length == 0
@@ -163,6 +178,7 @@ export default {
     },
     methods: {
         getIdFromCounter(id) {
+            // Find the key from the counter object based on the provided id
             for (const key in this.counter[3]) {
                 if (this.counter[3].hasOwnProperty(key) && this.counter[3][key] === id) {
                     return key;
@@ -171,15 +187,19 @@ export default {
             return null;
         },
         toggleCurrent() {
+            // Toggle the display of current traffic markers
             const path = 'http://localhost:5001/current';
+            this.isCurrentTrafficPressed = !this.isCurrentTrafficPressed;
 
             if (this.currentMarker.length != 0) {
+                // Remove existing current traffic markers from the map
                 for (var i in this.currentMarker) {
                     this.currentMarker[i].remove()
                 }
                 this.currentMarker = []
                 this.currentData = []
             } else {
+                // Fetch current traffic data and add markers to the map
                 axios.get(path)
                 .then((res) => {
                     for (var id in res.data['id']) {
@@ -199,6 +219,7 @@ export default {
             }
         },
         addMarkerSpeed(lat, long, id, date, speed, showFn) {
+            // Add a circle marker to the map with specified properties
             const marker = leaflet.circleMarker([lat, long]).addTo(this.map)
 
             marker.on('click', () => {
@@ -216,10 +237,13 @@ export default {
             return marker
         },
         showCurrentDetails(id, date, speed) {
+            // Update the info and currentDetails properties for displaying current details
             this.info = 'current'
             this.currentDetails = [id, date, speed]
         },
         toggleCounter() {
+            // Toggle the display of counter markers on the map
+            this.isCounterPressed = !this.isCounterPressed;
             for (var i in this.countersMarker)
                 if (this.isCounterDisplay == true) {
                     this.countersMarker[i].remove()
@@ -229,6 +253,7 @@ export default {
             this.isCounterDisplay = !this.isCounterDisplay
         },
         getCounter() {
+            // Fetch counter data and add counter markers to the map
             const path = 'http://localhost:5001/counter';
             axios.get(path)
             .then((res) => {
@@ -245,6 +270,7 @@ export default {
             })
         },
         addMarker(lat, long, lane, id) {
+            // Add a circle marker for counter data to the map
             const marker = leaflet.circleMarker([lat, long]).addTo(this.map)
 
             marker.on('click', () => {
@@ -254,10 +280,13 @@ export default {
             return marker
         },
         showCounterDetails(id, lane, lat, long) {
+            // Update the info and actualCounter properties for displaying counter details
             this.info = 'counter'
             this.actualCounter = [id, lane, lat, long]
         },
         togglePredict() {
+            // Toggle the display of predict markers on the map
+            this.isPredictPressed = !this.isPredictPressed;
             for (var i in this.predictMarker)
                 if (this.isPredictDisplay == true) {
                     this.predictMarker[i].remove()
@@ -267,10 +296,11 @@ export default {
             this.isPredictDisplay = !this.isPredictDisplay
         },
         getPredictionTrip() {
+            // Fetch trip and prediction data based on the selected route
             this.isLoading = true;
             const path = 'http://localhost:5001/tripPredict';
             const pathCounter = 'http://localhost:5001/trip'
-            this.timeTripRequest = this.tripSelectedDate + " : " + this.tripSelectedTime
+            this.timeTripRequest = this.tripSelectedDate + "-" + this.tripSelectedTime
 
             this.predictDetails = []
             for (var i in this.predictMarker) {
@@ -278,9 +308,11 @@ export default {
             }
             this.predictMarker = []
 
+            //get the id of the counter that are on the route
             axios.post(pathCounter, [this.route.coordinates])
             .then((res) => {
                 this.tripCounter = res.data
+                //get the predictions for the counter selected
                 axios.post(path, [this.tripCounter['id'], this.tripSelectedDate, this.tripSelectedTime])
                 .then((res) =>  {
                     this.tripPredict = res.data
@@ -313,10 +345,13 @@ export default {
             })
         },
         showPredictDetails(id, date, speed) {
+            // Update the info and tripPredictDetails properties for displaying prediction details
             this.info = 'predict'
             this.tripPredictDetails = [id, date, speed]
         },
         switchControlsVisibity() {
+            // Toggle the visibility of routing controls
+            this.isTripPlannerPressed = !this.isTripPlannerPressed;
             if (this.isControlsDisplay == true) {
                 this.map.removeControl(this.controls)
             } else {
@@ -331,6 +366,7 @@ export default {
         const route = ref(null)
 
         onMounted(() => {
+            // Initialize the map and routing controls
             map.value = leaflet.map('map', {preferCanvas: true}).setView([46.903990918040584, 8.258780023091239], 8);
 
             leaflet.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -357,6 +393,7 @@ export default {
         }
     },
     created() {
+        // Retrieve counter data when the component is created
         this.getCounter()
     }
 }
